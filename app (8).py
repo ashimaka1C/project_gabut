@@ -1,375 +1,368 @@
-"""
-TemanBelajar - Web Player Musik Pengiring Belajar
-Dibuat dengan Streamlit
-
-Fitur:
-- Pemutar musik (YouTube embed / upload file / URL audio langsung)
-- Playlist tersimpan per kategori
-- Timer belajar (Pomodoro) berbasis JS
-- Riwayat sesi belajar tersimpan lokal
-
-Cara menjalankan:
-    streamlit run app.py
-"""
-
 import streamlit as st
-import json
 import os
-import re
+import json
 from datetime import datetime
-import streamlit.components.v1 as components
+from pathlib import Path
+import base64
+import requests
+from github import Github
 
-# =========================================================
-# KONFIGURASI & FILE DATA
-# =========================================================
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-PLAYLIST_FILE = os.path.join(DATA_DIR, "playlist.json")
-HISTORY_FILE = os.path.join(DATA_DIR, "study_log.json")
+# GitHub configuration
+GITHUB_TOKEN = st.secrets.get("github_token", os.environ.get("GITHUB_TOKEN"))
+REPO_NAME = "music-streaming-repo"
+GITHUB_USER = "ashimaka1C"
 
-os.makedirs(DATA_DIR, exist_ok=True)
+# Initialize GitHub
+g = Github(GITHUB_TOKEN)
+user = g.get_user()
 
-KATEGORI_LIST = ["Lo-fi", "Piano", "Suara Alam", "Instrumental", "Lainnya"]
-
-
-def load_json(path, default):
-    if not os.path.exists(path):
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(default, f, ensure_ascii=False, indent=2)
-        return default
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-# Playlist contoh awal (link YouTube publik untuk musik instrumental/lo-fi resmi)
-DEFAULT_PLAYLIST = [
-    {
-        "id": 1,
-        "judul": "Lo-fi Beats untuk Fokus Belajar",
-        "kategori": "Lo-fi",
-        "tipe": "youtube",
-        "sumber": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
-    },
-    {
-        "id": 2,
-        "judul": "Suara Hujan untuk Relaksasi",
-        "kategori": "Suara Alam",
-        "tipe": "youtube",
-        "sumber": "https://www.youtube.com/watch?v=q76bMs-NwRk",
-    },
-]
-
-DEFAULT_HISTORY = []
-
-
-def get_youtube_id(url):
-    """Ambil video ID dari berbagai format URL YouTube."""
-    patterns = [
-        r"(?:v=|\/)([0-9A-Za-z_-]{11}).*",
-        r"youtu\.be\/([0-9A-Za-z_-]{11})",
-    ]
-    for p in patterns:
-        match = re.search(p, url)
-        if match:
-            return match.group(1)
-    return None
-
-
-# =========================================================
-# SESSION STATE
-# =========================================================
-if "playlist" not in st.session_state:
-    st.session_state.playlist = load_json(PLAYLIST_FILE, DEFAULT_PLAYLIST)
-
-if "history" not in st.session_state:
-    st.session_state.history = load_json(HISTORY_FILE, DEFAULT_HISTORY)
-
-if "now_playing" not in st.session_state:
-    st.session_state.now_playing = (
-        st.session_state.playlist[0] if st.session_state.playlist else None
+# Create repo if it doesn't exist
+try:
+    repo = user.get_repo(REPO_NAME)
+except:
+    repo = user.create_repo(
+        name=REPO_NAME,
+        description="Music Streaming Website",
+        private=False,
+        auto_init=True
     )
 
+st.set_page_config(
+    page_title="🎵 MusicFlow - GitHub Edition",
+    page_icon="🎵",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# =========================================================
-# KOMPONEN: PEMUTAR MUSIK
-# =========================================================
-def render_player(song):
-    if song is None:
-        st.info("Belum ada musik. Tambahkan musik dulu di menu 'Tambah Musik'.")
-        return
+# Custom CSS
+st.markdown("""
+<style>
+    .main {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .stApp {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    h1, h2, h3 {
+        color: white !important;
+    }
+    .song-card {
+        background: white;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin: 10px 0;
+    }
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        width: 100%;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-    st.subheader(f"🎵 Sedang diputar: {song['judul']}")
-    st.caption(f"Kategori: {song['kategori']}")
+# Session state initialization
+if "songs" not in st.session_state:
+    st.session_state.songs = []
+if "playlists" not in st.session_state:
+    st.session_state.playlists = {}
+if "current_song" not in st.session_state:
+    st.session_state.current_song = None
+if "favorites" not in st.session_state:
+    st.session_state.favorites = []
 
-    if song["tipe"] == "youtube":
-        vid = get_youtube_id(song["sumber"])
-        if vid:
-            components.iframe(
-                f"https://www.youtube.com/embed/{vid}?autoplay=1",
-                height=200,
+# Helper functions
+def load_from_github():
+    """Load songs and playlists from GitHub"""
+    try:
+        # Load songs
+        try:
+            songs_file = repo.get_contents("data/songs.json")
+            st.session_state.songs = json.loads(songs_file.decoded_content)
+        except:
+            st.session_state.songs = []
+        
+        # Load playlists
+        try:
+            playlists_file = repo.get_contents("data/playlists.json")
+            st.session_state.playlists = json.loads(playlists_file.decoded_content)
+        except:
+            st.session_state.playlists = {}
+        
+        # Load favorites
+        try:
+            favorites_file = repo.get_contents("data/favorites.json")
+            st.session_state.favorites = json.loads(favorites_file.decoded_content)
+        except:
+            st.session_state.favorites = []
+    except Exception as e:
+        st.error(f"Error loading from GitHub: {e}")
+
+def save_to_github(data, filepath, message):
+    """Save data to GitHub"""
+    try:
+        content = json.dumps(data, indent=2)
+        
+        try:
+            file = repo.get_contents(filepath)
+            repo.update_file(
+                filepath,
+                message,
+                content,
+                file.sha
             )
-        else:
-            st.error("Link YouTube tidak valid.")
-    elif song["tipe"] == "url":
-        st.audio(song["sumber"])
-    elif song["tipe"] == "upload":
-        # sumber berisi path file yang sudah disimpan di folder data/uploads
-        if os.path.exists(song["sumber"]):
-            st.audio(song["sumber"])
-        else:
-            st.error("File audio tidak ditemukan.")
-
-
-# =========================================================
-# KOMPONEN: TIMER BELAJAR (Pomodoro, berjalan di sisi browser)
-# =========================================================
-def render_timer():
-    st.subheader("⏱️ Timer Belajar")
-    menit = st.slider("Durasi belajar (menit)", 5, 90, 25, step=5)
-
-    timer_html = f"""
-    <div style="font-family:sans-serif; text-align:center; padding:10px;">
-        <div id="display" style="font-size:48px; font-weight:bold; color:#2c3e50;">
-            {menit:02d}:00
-        </div>
-        <button id="startBtn" style="padding:8px 20px; margin:5px; font-size:16px;
-            border-radius:8px; border:none; background:#4CAF50; color:white; cursor:pointer;">
-            Mulai
-        </button>
-        <button id="resetBtn" style="padding:8px 20px; margin:5px; font-size:16px;
-            border-radius:8px; border:none; background:#e74c3c; color:white; cursor:pointer;">
-            Reset
-        </button>
-        <p id="status" style="color:#555;"></p>
-    </div>
-
-    <script>
-    let totalSeconds = {menit} * 60;
-    let remaining = totalSeconds;
-    let timerInterval = null;
-
-    function updateDisplay() {{
-        let m = Math.floor(remaining / 60);
-        let s = remaining % 60;
-        document.getElementById("display").innerText =
-            String(m).padStart(2,'0') + ":" + String(s).padStart(2,'0');
-    }}
-
-    function playBeep() {{
-        // Bunyi alarm sederhana menggunakan Web Audio API (tidak memakai file berhak cipta)
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.frequency.value = 880;
-        g.gain.value = 0.2;
-        o.start();
-        setTimeout(() => o.stop(), 600);
-    }}
-
-    document.getElementById("startBtn").onclick = function() {{
-        if (timerInterval) return;
-        document.getElementById("status").innerText = "Sesi belajar dimulai. Semangat!";
-        timerInterval = setInterval(() => {{
-            remaining--;
-            updateDisplay();
-            if (remaining <= 0) {{
-                clearInterval(timerInterval);
-                timerInterval = null;
-                document.getElementById("status").innerText = "Waktu belajar selesai! 🎉";
-                playBeep();
-            }}
-        }}, 1000);
-    }};
-
-    document.getElementById("resetBtn").onclick = function() {{
-        clearInterval(timerInterval);
-        timerInterval = null;
-        remaining = totalSeconds;
-        updateDisplay();
-        document.getElementById("status").innerText = "";
-    }};
-
-    updateDisplay();
-    </script>
-    """
-    components.html(timer_html, height=220)
-
-    st.markdown("---")
-    st.caption("Setelah selesai belajar, catat sesi ini ke riwayat:")
-    catatan = st.text_input("Catatan sesi (opsional)", placeholder="Contoh: Belajar Kimia Analisis Bab Titrimetri")
-    if st.button("✅ Simpan Sesi ke Riwayat"):
-        entry = {
-            "tanggal": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "durasi_menit": menit,
-            "catatan": catatan,
-        }
-        st.session_state.history.append(entry)
-        save_json(HISTORY_FILE, st.session_state.history)
-        st.success("Sesi belajar berhasil dicatat!")
-
-
-# =========================================================
-# HALAMAN: BERANDA (Pemutar + Timer berdampingan)
-# =========================================================
-def page_beranda():
-    st.title("🎧 TemanBelajar")
-    st.write("Putar musik pengiring sambil belajar, dan gunakan timer untuk menjaga fokus.")
-
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        judul_list = [s["judul"] for s in st.session_state.playlist]
-        if judul_list:
-            pilihan = st.selectbox("Pilih musik dari playlist:", judul_list)
-            selected_song = next(
-                s for s in st.session_state.playlist if s["judul"] == pilihan
+        except:
+            repo.create_file(
+                filepath,
+                message,
+                content
             )
-            st.session_state.now_playing = selected_song
-        render_player(st.session_state.now_playing)
+        st.success(f"✅ Saved to GitHub!")
+    except Exception as e:
+        st.error(f"Error saving to GitHub: {e}")
 
-    with col2:
-        render_timer()
+def add_song(title, artist, album, url, cover_url):
+    """Add a new song"""
+    song = {
+        "id": len(st.session_state.songs) + 1,
+        "title": title,
+        "artist": artist,
+        "album": album,
+        "url": url,
+        "cover_url": cover_url,
+        "plays": 0,
+        "added_at": datetime.now().isoformat()
+    }
+    st.session_state.songs.append(song)
+    save_to_github(st.session_state.songs, "data/songs.json", "Add new song")
+    return song
 
+def play_song(song):
+    """Play a song"""
+    st.session_state.current_song = song
+    song["plays"] = song.get("plays", 0) + 1
+    save_to_github(st.session_state.songs, "data/songs.json", f"Increment plays for {song['title']}")
 
-# =========================================================
-# HALAMAN: PLAYLIST SAYA
-# =========================================================
-def page_playlist():
-    st.title("📻 Playlist Saya")
-    if not st.session_state.playlist:
-        st.info("Playlist masih kosong.")
-        return
+def add_to_favorites(song):
+    """Add song to favorites"""
+    if song["id"] not in st.session_state.favorites:
+        st.session_state.favorites.append(song["id"])
+        save_to_github(st.session_state.favorites, "data/favorites.json", "Update favorites")
 
-    for kategori in KATEGORI_LIST:
-        lagu_kategori = [s for s in st.session_state.playlist if s["kategori"] == kategori]
-        if not lagu_kategori:
-            continue
-        st.subheader(f"🎼 {kategori}")
-        for song in lagu_kategori:
-            c1, c2, c3 = st.columns([3, 1, 1])
-            c1.write(f"**{song['judul']}**  ·  _{song['tipe']}_")
-            if c2.button("▶️ Putar", key=f"play_{song['id']}"):
-                st.session_state.now_playing = song
-                st.success(f"Memutar: {song['judul']}")
-            if c3.button("🗑️ Hapus", key=f"del_{song['id']}"):
-                st.session_state.playlist = [
-                    s for s in st.session_state.playlist if s["id"] != song["id"]
-                ]
-                save_json(PLAYLIST_FILE, st.session_state.playlist)
-                st.rerun()
+def create_playlist(name):
+    """Create a new playlist"""
+    if name not in st.session_state.playlists:
+        st.session_state.playlists[name] = []
+        save_to_github(st.session_state.playlists, "data/playlists.json", f"Create playlist: {name}")
 
+def add_to_playlist(playlist_name, song_id):
+    """Add song to playlist"""
+    if playlist_name in st.session_state.playlists:
+        if song_id not in st.session_state.playlists[playlist_name]:
+            st.session_state.playlists[playlist_name].append(song_id)
+            save_to_github(st.session_state.playlists, "data/playlists.json", f"Add song to {playlist_name}")
 
-# =========================================================
-# HALAMAN: TAMBAH MUSIK
-# =========================================================
-def page_tambah_musik():
-    st.title("➕ Tambah Musik ke Playlist")
+def search_songs(query):
+    """Search songs"""
+    return [s for s in st.session_state.songs if 
+            query.lower() in s["title"].lower() or 
+            query.lower() in s["artist"].lower() or
+            query.lower() in s["album"].lower()]
 
-    tipe = st.radio(
-        "Sumber musik:",
-        ["Link YouTube", "Upload File Audio", "URL Audio Langsung"],
-    )
-
-    judul = st.text_input("Judul / nama musik")
-    kategori = st.selectbox("Kategori", KATEGORI_LIST)
-
-    if tipe == "Link YouTube":
-        url = st.text_input("Tempel link YouTube di sini")
-        if st.button("Tambahkan"):
-            if judul and url and get_youtube_id(url):
-                new_id = max([s["id"] for s in st.session_state.playlist], default=0) + 1
-                st.session_state.playlist.append({
-                    "id": new_id, "judul": judul, "kategori": kategori,
-                    "tipe": "youtube", "sumber": url,
-                })
-                save_json(PLAYLIST_FILE, st.session_state.playlist)
-                st.success("Musik berhasil ditambahkan!")
-            else:
-                st.error("Pastikan judul diisi dan link YouTube valid.")
-
-    elif tipe == "Upload File Audio":
-        uploaded_file = st.file_uploader("Upload file audio (mp3/wav)", type=["mp3", "wav", "ogg"])
-        if st.button("Tambahkan") and uploaded_file and judul:
-            upload_dir = os.path.join(DATA_DIR, "uploads")
-            os.makedirs(upload_dir, exist_ok=True)
-            file_path = os.path.join(upload_dir, uploaded_file.name)
-            with open(file_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            new_id = max([s["id"] for s in st.session_state.playlist], default=0) + 1
-            st.session_state.playlist.append({
-                "id": new_id, "judul": judul, "kategori": kategori,
-                "tipe": "upload", "sumber": file_path,
-            })
-            save_json(PLAYLIST_FILE, st.session_state.playlist)
-            st.success("File audio berhasil ditambahkan ke playlist!")
-
-    else:  # URL Audio Langsung
-        url = st.text_input("Tempel URL file audio (.mp3/.wav) di sini")
-        if st.button("Tambahkan"):
-            if judul and url:
-                new_id = max([s["id"] for s in st.session_state.playlist], default=0) + 1
-                st.session_state.playlist.append({
-                    "id": new_id, "judul": judul, "kategori": kategori,
-                    "tipe": "url", "sumber": url,
-                })
-                save_json(PLAYLIST_FILE, st.session_state.playlist)
-                st.success("Musik berhasil ditambahkan!")
-            else:
-                st.error("Judul dan URL harus diisi.")
-
-
-# =========================================================
-# HALAMAN: RIWAYAT BELAJAR
-# =========================================================
-def page_riwayat():
-    st.title("📊 Riwayat Belajar")
-    if not st.session_state.history:
-        st.info("Belum ada riwayat sesi belajar. Selesaikan sesi timer untuk mulai mencatat.")
-        return
-
-    total_menit = sum(h["durasi_menit"] for h in st.session_state.history)
-    st.metric("Total waktu belajar tercatat", f"{total_menit} menit")
-
-    st.markdown("---")
-    for entry in reversed(st.session_state.history):
-        st.write(f"🗓️ **{entry['tanggal']}** — {entry['durasi_menit']} menit")
-        if entry.get("catatan"):
-            st.caption(f"📝 {entry['catatan']}")
-        st.markdown("---")
-
-    if st.button("🗑️ Hapus Semua Riwayat"):
-        st.session_state.history = []
-        save_json(HISTORY_FILE, [])
+# Main interface
+col1, col2, col3 = st.columns([2, 3, 1])
+with col1:
+    st.title("🎵 MusicFlow")
+with col3:
+    if st.button("🔄 Refresh Data", use_container_width=True):
+        load_from_github()
         st.rerun()
 
+# Sidebar navigation
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["🏠 Home", "🎵 Browse", "➕ Upload", "📋 Playlists", "❤️ Favorites"])
 
-# =========================================================
-# NAVIGASI UTAMA
-# =========================================================
-def main():
-    st.set_page_config(page_title="TemanBelajar", page_icon="🎧", layout="wide")
+# Load data on first run
+load_from_github()
 
-    st.sidebar.title("🎧 TemanBelajar")
-    menu = st.sidebar.radio(
-        "Menu",
-        ["🏠 Beranda", "📻 Playlist Saya", "➕ Tambah Musik", "📊 Riwayat Belajar"],
-    )
-    st.sidebar.markdown("---")
-    st.sidebar.caption("Dengarkan musik, atur waktu, dan catat progres belajarmu.")
+# HOME PAGE
+if page == "🏠 Home":
+    st.header("Welcome to MusicFlow")
+    st.write("Your music library powered by GitHub and Streamlit")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Songs", len(st.session_state.songs))
+    with col2:
+        st.metric("Total Plays", sum(s.get("plays", 0) for s in st.session_state.songs))
+    with col3:
+        st.metric("Playlists", len(st.session_state.playlists))
+    
+    st.subheader("🎶 Recently Added")
+    if st.session_state.songs:
+        recent_songs = sorted(st.session_state.songs, 
+                            key=lambda x: x.get("added_at", ""), 
+                            reverse=True)[:5]
+        for song in recent_songs:
+            with st.container():
+                col1, col2, col3 = st.columns([1, 3, 1])
+                with col1:
+                    st.image(song.get("cover_url", "https://via.placeholder.com/50"), width=50)
+                with col2:
+                    st.write(f"**{song['title']}**")
+                    st.caption(f"{song['artist']} • {song['album']}")
+                with col3:
+                    if st.button("▶️ Play", key=f"play_{song['id']}"):
+                        play_song(song)
+                        st.success(f"Now Playing: {song['title']}")
+    else:
+        st.info("No songs yet. Upload some music to get started!")
 
-    if menu == "🏠 Beranda":
-        page_beranda()
-    elif menu == "📻 Playlist Saya":
-        page_playlist()
-    elif menu == "➕ Tambah Musik":
-        page_tambah_musik()
-    elif menu == "📊 Riwayat Belajar":
-        page_riwayat()
+# BROWSE PAGE
+elif page == "🎵 Browse":
+    st.header("Browse Songs")
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        search_query = st.text_input("🔍 Search songs, artists, albums...")
+    with col2:
+        sort_by = st.selectbox("Sort by", ["Recent", "Most Played", "Title", "Artist"])
+    
+    # Filter songs
+    if search_query:
+        songs_to_display = search_songs(search_query)
+    else:
+        songs_to_display = st.session_state.songs.copy()
+    
+    # Sort songs
+    if sort_by == "Most Played":
+        songs_to_display.sort(key=lambda x: x.get("plays", 0), reverse=True)
+    elif sort_by == "Title":
+        songs_to_display.sort(key=lambda x: x["title"])
+    elif sort_by == "Artist":
+        songs_to_display.sort(key=lambda x: x["artist"])
+    else:
+        songs_to_display.sort(key=lambda x: x.get("added_at", ""), reverse=True)
+    
+    if songs_to_display:
+        cols = st.columns(3)
+        for idx, song in enumerate(songs_to_display):
+            with cols[idx % 3]:
+                with st.container():
+                    st.image(song.get("cover_url", "https://via.placeholder.com/150"), use_column_width=True)
+                    st.write(f"**{song['title']}**")
+                    st.caption(f"{song['artist']}")
+                    st.caption(f"Album: {song['album']}")
+                    st.caption(f"▶️ {song.get('plays', 0)} plays")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if st.button("▶️", key=f"play_btn_{song['id']}"):
+                            play_song(song)
+                            st.rerun()
+                    with col2:
+                        if st.button("❤️", key=f"fav_btn_{song['id']}"):
+                            add_to_favorites(song)
+                            st.rerun()
+                    with col3:
+                        if st.button("➕", key=f"add_btn_{song['id']}"):
+                            st.session_state.add_to_playlist_id = song['id']
+    else:
+        st.info("No songs found. Try a different search.")
 
+# UPLOAD PAGE
+elif page == "➕ Upload":
+    st.header("Upload Music")
+    
+    with st.form("upload_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            title = st.text_input("Song Title")
+            artist = st.text_input("Artist Name")
+        with col2:
+            album = st.text_input("Album Name")
+            cover_url = st.text_input("Cover Image URL (optional)")
+        
+        url = st.text_input("Audio File URL (or Spotify link)")
+        submitted = st.form_submit_button("📤 Upload Song", use_container_width=True)
+        
+        if submitted:
+            if title and artist and url:
+                add_song(title, artist, album, url, 
+                        cover_url or "https://via.placeholder.com/150")
+                st.success("✅ Song uploaded successfully!")
+                st.balloons()
+            else:
+                st.error("Please fill in all required fields")
 
-if __name__ == "__main__":
-    main()
+# PLAYLISTS PAGE
+elif page == "📋 Playlists":
+    st.header("My Playlists")
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        playlist_name = st.text_input("Create new playlist")
+    with col2:
+        if st.button("Create", use_container_width=True):
+            if playlist_name:
+                create_playlist(playlist_name)
+                st.rerun()
+    
+    if st.session_state.playlists:
+        for playlist_name, song_ids in st.session_state.playlists.items():
+            with st.expander(f"📋 {playlist_name} ({len(song_ids)} songs)"):
+                for song_id in song_ids:
+                    song = next((s for s in st.session_state.songs if s["id"] == song_id), None)
+                    if song:
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            st.write(f"**{song['title']}** - {song['artist']}")
+                        with col2:
+                            if st.button("▶️", key=f"play_pl_{song_id}"):
+                                play_song(song)
+    else:
+        st.info("No playlists yet. Create one to get started!")
+
+# FAVORITES PAGE
+elif page == "❤️ Favorites":
+    st.header("Favorite Songs")
+    
+    favorite_songs = [s for s in st.session_state.songs if s["id"] in st.session_state.favorites]
+    
+    if favorite_songs:
+        cols = st.columns(3)
+        for idx, song in enumerate(favorite_songs):
+            with cols[idx % 3]:
+                with st.container():
+                    st.image(song.get("cover_url", "https://via.placeholder.com/150"), use_column_width=True)
+                    st.write(f"**{song['title']}**")
+                    st.caption(f"{song['artist']}")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("▶️ Play", key=f"fav_play_{song['id']}"):
+                            play_song(song)
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Remove", key=f"fav_remove_{song['id']}"):
+                            st.session_state.favorites.remove(song["id"])
+                            save_to_github(st.session_state.favorites, "data/favorites.json", "Remove from favorites")
+                            st.rerun()
+    else:
+        st.info("No favorites yet. Like songs to add them here!")
+
+# Player at bottom
+st.divider()
+if st.session_state.current_song:
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
+        st.write(f"🎵 **Now Playing:** {st.session_state.current_song['title']}")
+        st.caption(f"by {st.session_state.current_song['artist']}")
+    with col2:
+        st.audio(st.session_state.current_song["url"])
+    with col3:
+        if st.button("✖️ Stop"):
+            st.session_state.current_song = None
+            st.rerun()
+else:
+    st.info("Select a song to play")
