@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ============= STYLING =============
+# ============= STYLING - DARK THEME =============
 st.markdown("""
 <style>
     * {
@@ -25,40 +25,40 @@ st.markdown("""
     }
     
     body {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
     }
     
     .main {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
     }
     
     .stApp {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
     }
     
     /* Card styling */
     .music-card {
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(48, 43, 99, 0.4);
         border-radius: 15px;
         padding: 20px;
         backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.15);
         transition: all 0.3s ease;
         cursor: pointer;
     }
     
     .music-card:hover {
-        background: rgba(255, 255, 255, 0.2);
+        background: rgba(48, 43, 99, 0.6);
         transform: translateY(-5px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
     }
     
     .player-container {
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(48, 43, 99, 0.5);
         border-radius: 20px;
         padding: 30px;
         backdrop-filter: blur(10px);
-        border: 2px solid rgba(255, 255, 255, 0.3);
+        border: 2px solid rgba(102, 126, 234, 0.3);
         margin: 20px 0;
     }
     
@@ -66,11 +66,11 @@ st.markdown("""
         color: white;
         font-size: 32px;
         font-weight: bold;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
     }
     
     .subtitle-text {
-        color: rgba(255, 255, 255, 0.9);
+        color: rgba(255, 255, 255, 0.8);
         font-size: 16px;
     }
     
@@ -82,10 +82,6 @@ st.markdown("""
         padding: 10px 20px;
         cursor: pointer;
         font-weight: bold;
-    }
-    
-    .animation-pulse {
-        animation: pulse 2s infinite;
     }
     
     @keyframes pulse {
@@ -188,6 +184,24 @@ SAMPLE_SONGS = [
         "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
         "color": "#A0C4FF"
     },
+    {
+        "id": 9,
+        "title": "Retro Arcade",
+        "artist": "8-Bit Dreams",
+        "duration": "3:30",
+        "genre": "Electronic",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "color": "#FF85B3"
+    },
+    {
+        "id": 10,
+        "title": "Euphoria",
+        "artist": "Electric Soul",
+        "duration": "4:20",
+        "genre": "Synthwave",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        "color": "#B5EAD7"
+    },
 ]
 
 # ============= SESSION STATE =============
@@ -218,6 +232,36 @@ def create_animated_visualizer():
         html += f'<div style="width: 8px; height: {height}px; background: linear-gradient(180deg, #667eea 0%, #764ba2 100%); border-radius: 4px; animation: bounce {0.5 + i*0.1}s ease-in-out infinite;"></div>'
     html += '</div>'
     return html
+
+def create_album_art(color):
+    """Create album art with dark theme"""
+    # Convert hex color to RGB
+    color_rgb = tuple(int(color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+    
+    # Create dark background
+    img = Image.new('RGB', (200, 200), color=(15, 12, 41))
+    draw = ImageDraw.Draw(img)
+    
+    # Draw animated circles
+    center_x, center_y = 100, 100
+    
+    for i in range(5):
+        radius = 30 + i * 15
+        # Draw circle with color overlay
+        draw.ellipse(
+            [center_x - radius, center_y - radius, center_x + radius, center_y + radius],
+            outline=color_rgb,
+            width=2
+        )
+    
+    # Draw center circle with gradient effect
+    inner_radius = 20
+    draw.ellipse(
+        [center_x - inner_radius, center_y - inner_radius, center_x + inner_radius, center_y + inner_radius],
+        fill=color_rgb
+    )
+    
+    return img
 
 def get_genres():
     """Get all unique genres"""
@@ -269,8 +313,8 @@ col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
     st.markdown(
         '<div style="text-align: center; padding: 20px;">'
-        '<h1 style="color: white; font-size: 48px; text-shadow: 3px 3px 6px rgba(0,0,0,0.3); margin: 0;">🎵 WAVO</h1>'
-        '<p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 5px 0;">Your Personal Web Music Player</p>'
+        '<h1 style="color: #667eea; font-size: 48px; text-shadow: 3px 3px 6px rgba(0,0,0,0.5); margin: 0;">🎵 WAVO</h1>'
+        '<p style="color: rgba(255,255,255,0.7); font-size: 14px; margin: 5px 0;">Your Personal Web Music Player</p>'
         '</div>',
         unsafe_allow_html=True
     )
@@ -282,30 +326,17 @@ st.markdown('<div class="player-container">', unsafe_allow_html=True)
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    # Create album art with gradient
-    img = Image.new('RGB', (200, 200), color=(102, 126, 234))
-    draw = ImageDraw.Draw(img, 'RGBA')
-    
-    # Draw circles
-    for i in range(5):
-        draw.ellipse(
-            [(40 + i*20, 40 + i*20), (160 - i*20, 160 - i*20)],
-            outline=(255, 255, 255, 100 - i*15),
-            width=2
-        )
-    
-    # Draw center circle
-    draw.ellipse([(80, 80), (120, 120)], fill=(118, 75, 162))
-    
-    st.image(img, use_column_width=True)
+    # Create album art
+    album_img = create_album_art(st.session_state.current_song["color"])
+    st.image(album_img, use_column_width=True)
 
 with col2:
     st.markdown(
         f'<div style="padding: 20px;">'
-        f'<h2 style="color: white; margin: 0;">{st.session_state.current_song["title"]}</h2>'
-        f'<p style="color: rgba(255,255,255,0.8); font-size: 16px; margin: 5px 0;">{st.session_state.current_song["artist"]}</p>'
-        f'<p style="color: rgba(255,255,255,0.6); font-size: 14px; margin: 10px 0;">Genre: {st.session_state.current_song["genre"]}</p>'
-        f'<p style="color: rgba(255,255,255,0.6); font-size: 14px;">Duration: {st.session_state.current_song["duration"]}</p>'
+        f'<h2 style="color: #667eea; margin: 0;">{st.session_state.current_song["title"]}</h2>'
+        f'<p style="color: rgba(255,255,255,0.7); font-size: 16px; margin: 5px 0;">{st.session_state.current_song["artist"]}</p>'
+        f'<p style="color: rgba(255,255,255,0.5); font-size: 14px; margin: 10px 0;">🎧 Genre: {st.session_state.current_song["genre"]}</p>'
+        f'<p style="color: rgba(255,255,255,0.5); font-size: 14px;">⏱️ Duration: {st.session_state.current_song["duration"]}</p>'
         f'</div>',
         unsafe_allow_html=True
     )
@@ -334,7 +365,7 @@ with col3:
 
 with col4:
     if st.button("🔁 Repeat", use_container_width=True):
-        pass
+        st.toast("🔁 Repeat mode ON")
 
 with col5:
     if st.button("Next ⏭️", use_container_width=True):
@@ -386,12 +417,12 @@ if filtered_songs:
         with cols[idx % 4]:
             st.markdown(
                 f'''
-                <div class="music-card" style="background: linear-gradient(135deg, {song["color"]}33 0%, {song["color"]}11 100%);">
+                <div class="music-card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.1) 100%); border: 1px solid rgba({song["color"].lstrip("#")[:2]}, {song["color"].lstrip("#")[2:4]}, {song["color"].lstrip("#")[4:]}, 0.3);">
                     <div style="text-align: center;">
                         <div style="font-size: 40px; margin-bottom: 10px;">♫</div>
-                        <h4 style="color: white; margin: 5px 0; font-size: 14px;">{song["title"]}</h4>
-                        <p style="color: rgba(255,255,255,0.8); font-size: 12px; margin: 3px 0;">{song["artist"]}</p>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 11px; margin: 5px 0;">{song["genre"]} • {song["duration"]}</p>
+                        <h4 style="color: #667eea; margin: 5px 0; font-size: 14px; font-weight: bold;">{song["title"]}</h4>
+                        <p style="color: rgba(255,255,255,0.7); font-size: 12px; margin: 3px 0;">{song["artist"]}</p>
+                        <p style="color: rgba(255,255,255,0.5); font-size: 11px; margin: 5px 0;">🎧 {song["genre"]} • {song["duration"]}</p>
                     </div>
                 </div>
                 ''',
@@ -400,20 +431,20 @@ if filtered_songs:
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button(f"▶️ Play", key=f"play_{song['id']}", use_container_width=True):
+                if st.button(f"▶️", key=f"play_{song['id']}", use_container_width=True):
                     play_song(song)
                     st.rerun()
             
             with col2:
                 if st.button(f"❤️", key=f"like_{song['id']}", use_container_width=True):
-                    st.toast(f"Added '{song['title']}' to favorites!")
+                    st.toast(f"💖 Added '{song['title']}' to favorites!")
 else:
     st.warning("❌ No songs found. Try adjusting your search or filter.")
 
 # ============= FOOTER =============
 st.markdown("---")
 st.markdown(
-    '<div style="text-align: center; color: rgba(255,255,255,0.6); padding: 20px;">'
+    '<div style="text-align: center; color: rgba(255,255,255,0.5); padding: 20px;">'
     '<p>🎵 Wavo v1.0 | Built with Streamlit | 2024</p>'
     '<p style="font-size: 12px;">Enjoy your music! 🎧</p>'
     '</div>',
