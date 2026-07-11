@@ -110,97 +110,115 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ============= SAMPLE MUSIC DATA =============
+# ============= SAMPLE MUSIC DATA - Modern Songs =============
 SAMPLE_SONGS = [
     {
         "id": 1,
-        "title": "Summer Vibes",
-        "artist": "The Beats",
-        "duration": "3:45",
-        "genre": "Electronic",
+        "title": "Blinding Lights",
+        "artist": "The Weeknd",
+        "duration": "3:20",
+        "genre": "Synthwave",
         "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
         "color": "#FF6B6B"
     },
     {
         "id": 2,
-        "title": "Midnight Dreams",
-        "artist": "Luna Echo",
-        "duration": "4:12",
-        "genre": "Chillhop",
+        "title": "levitating",
+        "artist": "Dua Lipa",
+        "duration": "3:23",
+        "genre": "Pop",
         "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
         "color": "#4ECDC4"
     },
     {
         "id": 3,
-        "title": "Electric Storm",
-        "artist": "Neon Lights",
-        "duration": "3:58",
-        "genre": "Synthwave",
+        "title": "Heat Waves",
+        "artist": "Glass Animals",
+        "duration": "3:59",
+        "genre": "Indie Pop",
         "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
         "color": "#FFE66D"
     },
     {
         "id": 4,
-        "title": "Ocean Waves",
-        "artist": "Chill Lofi",
-        "duration": "5:30",
-        "genre": "Lofi Hip-Hop",
+        "title": "Anti-Hero",
+        "artist": "Taylor Swift",
+        "duration": "3:21",
+        "genre": "Pop",
         "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
         "color": "#95E1D3"
     },
     {
         "id": 5,
-        "title": "Cosmic Journey",
-        "artist": "Space Travelers",
-        "duration": "4:45",
-        "genre": "Ambient",
+        "title": "As It Was",
+        "artist": "Harry Styles",
+        "duration": "2:32",
+        "genre": "Pop",
         "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
         "color": "#C7CEEA"
     },
     {
         "id": 6,
-        "title": "Urban Jungle",
-        "artist": "City Sounds",
-        "duration": "3:22",
-        "genre": "Hip-Hop",
+        "title": "Flowers",
+        "artist": "Miley Cyrus",
+        "duration": "3:20",
+        "genre": "Pop",
         "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
         "color": "#FFAFCC"
     },
     {
         "id": 7,
-        "title": "Jazz Nights",
-        "artist": "Jazz Masters",
-        "duration": "6:15",
-        "genre": "Jazz",
+        "title": "Sunroof",
+        "artist": "Nicky Youre",
+        "duration": "3:24",
+        "genre": "Alt Z",
         "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
         "color": "#BDB2FF"
     },
     {
         "id": 8,
-        "title": "Forest Walk",
-        "artist": "Nature Sounds",
-        "duration": "4:00",
-        "genre": "Nature",
-        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+        "title": "Bad Habit",
+        "artist": "Steve Lacy",
+        "duration": "2:11",
+        "genre": "R&B",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
         "color": "#A0C4FF"
     },
     {
         "id": 9,
-        "title": "Retro Arcade",
-        "artist": "8-Bit Dreams",
-        "duration": "3:30",
-        "genre": "Electronic",
-        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "title": "Unholy",
+        "artist": "Sam Smith & Kim Petras",
+        "duration": "2:36",
+        "genre": "Pop",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
         "color": "#FF85B3"
     },
     {
         "id": 10,
-        "title": "Euphoria",
-        "artist": "Electric Soul",
-        "duration": "4:20",
-        "genre": "Synthwave",
-        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        "title": "Paint The Town Red",
+        "artist": "Doja Cat",
+        "duration": "2:45",
+        "genre": "Hip-Hop",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
         "color": "#B5EAD7"
+    },
+    {
+        "id": 11,
+        "title": "Kill Bill",
+        "artist": "SZA",
+        "duration": "3:08",
+        "genre": "R&B",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+        "color": "#FFDAB9"
+    },
+    {
+        "id": 12,
+        "title": "Tití Me Preguntó",
+        "artist": "Bad Bunny",
+        "duration": "3:37",
+        "genre": "Reggaeton",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+        "color": "#FFB347"
     },
 ]
 
