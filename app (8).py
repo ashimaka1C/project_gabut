@@ -1,368 +1,421 @@
 import streamlit as st
 import os
 import json
-from datetime import datetime
 from pathlib import Path
+from datetime import datetime
 import base64
-import requests
-from github import Github
+import random
+from PIL import Image, ImageDraw
+import io
 
-# GitHub configuration
-GITHUB_TOKEN = st.secrets.get("github_token", os.environ.get("GITHUB_TOKEN"))
-REPO_NAME = "music-streaming-repo"
-GITHUB_USER = "ashimaka1C"
-
-# Initialize GitHub
-g = Github(GITHUB_TOKEN)
-user = g.get_user()
-
-# Create repo if it doesn't exist
-try:
-    repo = user.get_repo(REPO_NAME)
-except:
-    repo = user.create_repo(
-        name=REPO_NAME,
-        description="Music Streaming Website",
-        private=False,
-        auto_init=True
-    )
-
+# Configure Streamlit
 st.set_page_config(
-    page_title="🎵 MusicFlow - GitHub Edition",
+    page_title="🎵 Wavo - Web Music Player",
     page_icon="🎵",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# ============= STYLING =============
 st.markdown("""
 <style>
+    * {
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
     .main {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
+    
     .stApp {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
-    h1, h2, h3 {
-        color: white !important;
+    
+    /* Card styling */
+    .music-card {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 20px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+        cursor: pointer;
     }
-    .song-card {
-        background: white;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        margin: 10px 0;
+    
+    .music-card:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-5px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     }
-    .stButton > button {
+    
+    .player-container {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 30px;
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        margin: 20px 0;
+    }
+    
+    .title-text {
+        color: white;
+        font-size: 32px;
+        font-weight: bold;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    .subtitle-text {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 16px;
+    }
+    
+    .button-custom {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        width: 100%;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 20px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    
+    .animation-pulse {
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+    
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    .music-bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 3px;
+        height: 40px;
+    }
+    
+    .bar {
+        width: 4px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 2px;
+        animation: bounce 0.8s ease-in-out infinite;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Session state initialization
-if "songs" not in st.session_state:
-    st.session_state.songs = []
-if "playlists" not in st.session_state:
-    st.session_state.playlists = {}
+# ============= SAMPLE MUSIC DATA =============
+SAMPLE_SONGS = [
+    {
+        "id": 1,
+        "title": "Summer Vibes",
+        "artist": "The Beats",
+        "duration": "3:45",
+        "genre": "Electronic",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "color": "#FF6B6B"
+    },
+    {
+        "id": 2,
+        "title": "Midnight Dreams",
+        "artist": "Luna Echo",
+        "duration": "4:12",
+        "genre": "Chillhop",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        "color": "#4ECDC4"
+    },
+    {
+        "id": 3,
+        "title": "Electric Storm",
+        "artist": "Neon Lights",
+        "duration": "3:58",
+        "genre": "Synthwave",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+        "color": "#FFE66D"
+    },
+    {
+        "id": 4,
+        "title": "Ocean Waves",
+        "artist": "Chill Lofi",
+        "duration": "5:30",
+        "genre": "Lofi Hip-Hop",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+        "color": "#95E1D3"
+    },
+    {
+        "id": 5,
+        "title": "Cosmic Journey",
+        "artist": "Space Travelers",
+        "duration": "4:45",
+        "genre": "Ambient",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+        "color": "#C7CEEA"
+    },
+    {
+        "id": 6,
+        "title": "Urban Jungle",
+        "artist": "City Sounds",
+        "duration": "3:22",
+        "genre": "Hip-Hop",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+        "color": "#FFAFCC"
+    },
+    {
+        "id": 7,
+        "title": "Jazz Nights",
+        "artist": "Jazz Masters",
+        "duration": "6:15",
+        "genre": "Jazz",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+        "color": "#BDB2FF"
+    },
+    {
+        "id": 8,
+        "title": "Forest Walk",
+        "artist": "Nature Sounds",
+        "duration": "4:00",
+        "genre": "Nature",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+        "color": "#A0C4FF"
+    },
+]
+
+# ============= SESSION STATE =============
 if "current_song" not in st.session_state:
-    st.session_state.current_song = None
-if "favorites" not in st.session_state:
-    st.session_state.favorites = []
+    st.session_state.current_song = SAMPLE_SONGS[0]
 
-# Helper functions
-def load_from_github():
-    """Load songs and playlists from GitHub"""
-    try:
-        # Load songs
-        try:
-            songs_file = repo.get_contents("data/songs.json")
-            st.session_state.songs = json.loads(songs_file.decoded_content)
-        except:
-            st.session_state.songs = []
-        
-        # Load playlists
-        try:
-            playlists_file = repo.get_contents("data/playlists.json")
-            st.session_state.playlists = json.loads(playlists_file.decoded_content)
-        except:
-            st.session_state.playlists = {}
-        
-        # Load favorites
-        try:
-            favorites_file = repo.get_contents("data/favorites.json")
-            st.session_state.favorites = json.loads(favorites_file.decoded_content)
-        except:
-            st.session_state.favorites = []
-    except Exception as e:
-        st.error(f"Error loading from GitHub: {e}")
+if "is_playing" not in st.session_state:
+    st.session_state.is_playing = False
 
-def save_to_github(data, filepath, message):
-    """Save data to GitHub"""
-    try:
-        content = json.dumps(data, indent=2)
-        
-        try:
-            file = repo.get_contents(filepath)
-            repo.update_file(
-                filepath,
-                message,
-                content,
-                file.sha
-            )
-        except:
-            repo.create_file(
-                filepath,
-                message,
-                content
-            )
-        st.success(f"✅ Saved to GitHub!")
-    except Exception as e:
-        st.error(f"Error saving to GitHub: {e}")
+if "playlist" not in st.session_state:
+    st.session_state.playlist = SAMPLE_SONGS.copy()
 
-def add_song(title, artist, album, url, cover_url):
-    """Add a new song"""
-    song = {
-        "id": len(st.session_state.songs) + 1,
-        "title": title,
-        "artist": artist,
-        "album": album,
-        "url": url,
-        "cover_url": cover_url,
-        "plays": 0,
-        "added_at": datetime.now().isoformat()
-    }
-    st.session_state.songs.append(song)
-    save_to_github(st.session_state.songs, "data/songs.json", "Add new song")
-    return song
+if "search_query" not in st.session_state:
+    st.session_state.search_query = ""
+
+if "selected_genre" not in st.session_state:
+    st.session_state.selected_genre = "All"
+
+if "current_index" not in st.session_state:
+    st.session_state.current_index = 0
+
+# ============= HELPER FUNCTIONS =============
+def create_animated_visualizer():
+    """Create animated music visualizer"""
+    bars = [random.randint(20, 100) for _ in range(10)]
+    html = '<div style="display: flex; gap: 8px; justify-content: center; align-items: flex-end; height: 100px;">'
+    for i, height in enumerate(bars):
+        html += f'<div style="width: 8px; height: {height}px; background: linear-gradient(180deg, #667eea 0%, #764ba2 100%); border-radius: 4px; animation: bounce {0.5 + i*0.1}s ease-in-out infinite;"></div>'
+    html += '</div>'
+    return html
+
+def get_genres():
+    """Get all unique genres"""
+    genres = set([song["genre"] for song in SAMPLE_SONGS])
+    return ["All"] + sorted(list(genres))
+
+def filter_songs(songs, query, genre):
+    """Filter songs by search query and genre"""
+    filtered = songs
+    
+    if genre != "All":
+        filtered = [s for s in filtered if s["genre"] == genre]
+    
+    if query:
+        query = query.lower()
+        filtered = [s for s in filtered if 
+                   query in s["title"].lower() or 
+                   query in s["artist"].lower()]
+    
+    return filtered
 
 def play_song(song):
-    """Play a song"""
+    """Play selected song"""
     st.session_state.current_song = song
-    song["plays"] = song.get("plays", 0) + 1
-    save_to_github(st.session_state.songs, "data/songs.json", f"Increment plays for {song['title']}")
+    st.session_state.is_playing = True
+    st.session_state.current_index = SAMPLE_SONGS.index(song)
 
-def add_to_favorites(song):
-    """Add song to favorites"""
-    if song["id"] not in st.session_state.favorites:
-        st.session_state.favorites.append(song["id"])
-        save_to_github(st.session_state.favorites, "data/favorites.json", "Update favorites")
+def next_song():
+    """Play next song"""
+    current_index = st.session_state.current_index
+    next_index = (current_index + 1) % len(SAMPLE_SONGS)
+    st.session_state.current_song = SAMPLE_SONGS[next_index]
+    st.session_state.current_index = next_index
 
-def create_playlist(name):
-    """Create a new playlist"""
-    if name not in st.session_state.playlists:
-        st.session_state.playlists[name] = []
-        save_to_github(st.session_state.playlists, "data/playlists.json", f"Create playlist: {name}")
+def prev_song():
+    """Play previous song"""
+    current_index = st.session_state.current_index
+    prev_index = (current_index - 1) % len(SAMPLE_SONGS)
+    st.session_state.current_song = SAMPLE_SONGS[prev_index]
+    st.session_state.current_index = prev_index
 
-def add_to_playlist(playlist_name, song_id):
-    """Add song to playlist"""
-    if playlist_name in st.session_state.playlists:
-        if song_id not in st.session_state.playlists[playlist_name]:
-            st.session_state.playlists[playlist_name].append(song_id)
-            save_to_github(st.session_state.playlists, "data/playlists.json", f"Add song to {playlist_name}")
+def toggle_play():
+    """Toggle play/pause"""
+    st.session_state.is_playing = not st.session_state.is_playing
 
-def search_songs(query):
-    """Search songs"""
-    return [s for s in st.session_state.songs if 
-            query.lower() in s["title"].lower() or 
-            query.lower() in s["artist"].lower() or
-            query.lower() in s["album"].lower()]
+# ============= HEADER =============
+col1, col2, col3 = st.columns([1, 2, 1])
 
-# Main interface
-col1, col2, col3 = st.columns([2, 3, 1])
+with col2:
+    st.markdown(
+        '<div style="text-align: center; padding: 20px;">'
+        '<h1 style="color: white; font-size: 48px; text-shadow: 3px 3px 6px rgba(0,0,0,0.3); margin: 0;">🎵 WAVO</h1>'
+        '<p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 5px 0;">Your Personal Web Music Player</p>'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+# ============= MAIN PLAYER =============
+st.markdown('<div class="player-container">', unsafe_allow_html=True)
+
+# Current Song Display
+col1, col2 = st.columns([1, 2])
+
 with col1:
-    st.title("🎵 MusicFlow")
-with col3:
-    if st.button("🔄 Refresh Data", use_container_width=True):
-        load_from_github()
+    # Create album art with gradient
+    img = Image.new('RGB', (200, 200), color=(102, 126, 234))
+    draw = ImageDraw.Draw(img, 'RGBA')
+    
+    # Draw circles
+    for i in range(5):
+        draw.ellipse(
+            [(40 + i*20, 40 + i*20), (160 - i*20, 160 - i*20)],
+            outline=(255, 255, 255, 100 - i*15),
+            width=2
+        )
+    
+    # Draw center circle
+    draw.ellipse([(80, 80), (120, 120)], fill=(118, 75, 162))
+    
+    st.image(img, use_column_width=True)
+
+with col2:
+    st.markdown(
+        f'<div style="padding: 20px;">'
+        f'<h2 style="color: white; margin: 0;">{st.session_state.current_song["title"]}</h2>'
+        f'<p style="color: rgba(255,255,255,0.8); font-size: 16px; margin: 5px 0;">{st.session_state.current_song["artist"]}</p>'
+        f'<p style="color: rgba(255,255,255,0.6); font-size: 14px; margin: 10px 0;">Genre: {st.session_state.current_song["genre"]}</p>'
+        f'<p style="color: rgba(255,255,255,0.6); font-size: 14px;">Duration: {st.session_state.current_song["duration"]}</p>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+# Player Controls
+st.markdown("---")
+
+col1, col2, col3, col4, col5 = st.columns(5)
+
+with col1:
+    if st.button("⏮️ Prev", use_container_width=True):
+        prev_song()
         st.rerun()
 
-# Sidebar navigation
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["🏠 Home", "🎵 Browse", "➕ Upload", "📋 Playlists", "❤️ Favorites"])
+with col2:
+    if st.button("🔀 Shuffle", use_container_width=True):
+        random_song = random.choice(SAMPLE_SONGS)
+        play_song(random_song)
+        st.rerun()
 
-# Load data on first run
-load_from_github()
+with col3:
+    play_text = "⏸️ Pause" if st.session_state.is_playing else "▶️ Play"
+    if st.button(play_text, use_container_width=True):
+        toggle_play()
+        st.rerun()
 
-# HOME PAGE
-if page == "🏠 Home":
-    st.header("Welcome to MusicFlow")
-    st.write("Your music library powered by GitHub and Streamlit")
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Songs", len(st.session_state.songs))
-    with col2:
-        st.metric("Total Plays", sum(s.get("plays", 0) for s in st.session_state.songs))
-    with col3:
-        st.metric("Playlists", len(st.session_state.playlists))
-    
-    st.subheader("🎶 Recently Added")
-    if st.session_state.songs:
-        recent_songs = sorted(st.session_state.songs, 
-                            key=lambda x: x.get("added_at", ""), 
-                            reverse=True)[:5]
-        for song in recent_songs:
-            with st.container():
-                col1, col2, col3 = st.columns([1, 3, 1])
-                with col1:
-                    st.image(song.get("cover_url", "https://via.placeholder.com/50"), width=50)
-                with col2:
-                    st.write(f"**{song['title']}**")
-                    st.caption(f"{song['artist']} • {song['album']}")
-                with col3:
-                    if st.button("▶️ Play", key=f"play_{song['id']}"):
-                        play_song(song)
-                        st.success(f"Now Playing: {song['title']}")
-    else:
-        st.info("No songs yet. Upload some music to get started!")
+with col4:
+    if st.button("🔁 Repeat", use_container_width=True):
+        pass
 
-# BROWSE PAGE
-elif page == "🎵 Browse":
-    st.header("Browse Songs")
-    
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        search_query = st.text_input("🔍 Search songs, artists, albums...")
-    with col2:
-        sort_by = st.selectbox("Sort by", ["Recent", "Most Played", "Title", "Artist"])
-    
-    # Filter songs
-    if search_query:
-        songs_to_display = search_songs(search_query)
-    else:
-        songs_to_display = st.session_state.songs.copy()
-    
-    # Sort songs
-    if sort_by == "Most Played":
-        songs_to_display.sort(key=lambda x: x.get("plays", 0), reverse=True)
-    elif sort_by == "Title":
-        songs_to_display.sort(key=lambda x: x["title"])
-    elif sort_by == "Artist":
-        songs_to_display.sort(key=lambda x: x["artist"])
-    else:
-        songs_to_display.sort(key=lambda x: x.get("added_at", ""), reverse=True)
-    
-    if songs_to_display:
-        cols = st.columns(3)
-        for idx, song in enumerate(songs_to_display):
-            with cols[idx % 3]:
-                with st.container():
-                    st.image(song.get("cover_url", "https://via.placeholder.com/150"), use_column_width=True)
-                    st.write(f"**{song['title']}**")
-                    st.caption(f"{song['artist']}")
-                    st.caption(f"Album: {song['album']}")
-                    st.caption(f"▶️ {song.get('plays', 0)} plays")
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        if st.button("▶️", key=f"play_btn_{song['id']}"):
-                            play_song(song)
-                            st.rerun()
-                    with col2:
-                        if st.button("❤️", key=f"fav_btn_{song['id']}"):
-                            add_to_favorites(song)
-                            st.rerun()
-                    with col3:
-                        if st.button("➕", key=f"add_btn_{song['id']}"):
-                            st.session_state.add_to_playlist_id = song['id']
-    else:
-        st.info("No songs found. Try a different search.")
+with col5:
+    if st.button("Next ⏭️", use_container_width=True):
+        next_song()
+        st.rerun()
 
-# UPLOAD PAGE
-elif page == "➕ Upload":
-    st.header("Upload Music")
-    
-    with st.form("upload_form"):
-        col1, col2 = st.columns(2)
-        with col1:
-            title = st.text_input("Song Title")
-            artist = st.text_input("Artist Name")
-        with col2:
-            album = st.text_input("Album Name")
-            cover_url = st.text_input("Cover Image URL (optional)")
-        
-        url = st.text_input("Audio File URL (or Spotify link)")
-        submitted = st.form_submit_button("📤 Upload Song", use_container_width=True)
-        
-        if submitted:
-            if title and artist and url:
-                add_song(title, artist, album, url, 
-                        cover_url or "https://via.placeholder.com/150")
-                st.success("✅ Song uploaded successfully!")
-                st.balloons()
-            else:
-                st.error("Please fill in all required fields")
+# Visualizer
+if st.session_state.is_playing:
+    st.markdown(create_animated_visualizer(), unsafe_allow_html=True)
 
-# PLAYLISTS PAGE
-elif page == "📋 Playlists":
-    st.header("My Playlists")
-    
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        playlist_name = st.text_input("Create new playlist")
-    with col2:
-        if st.button("Create", use_container_width=True):
-            if playlist_name:
-                create_playlist(playlist_name)
-                st.rerun()
-    
-    if st.session_state.playlists:
-        for playlist_name, song_ids in st.session_state.playlists.items():
-            with st.expander(f"📋 {playlist_name} ({len(song_ids)} songs)"):
-                for song_id in song_ids:
-                    song = next((s for s in st.session_state.songs if s["id"] == song_id), None)
-                    if song:
-                        col1, col2 = st.columns([4, 1])
-                        with col1:
-                            st.write(f"**{song['title']}** - {song['artist']}")
-                        with col2:
-                            if st.button("▶️", key=f"play_pl_{song_id}"):
-                                play_song(song)
-    else:
-        st.info("No playlists yet. Create one to get started!")
+# Audio Player HTML
+st.markdown(
+    f'''
+    <audio autoplay style="width: 100%;">
+        <source src="{st.session_state.current_song['url']}" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    ''',
+    unsafe_allow_html=True
+)
 
-# FAVORITES PAGE
-elif page == "❤️ Favorites":
-    st.header("Favorite Songs")
-    
-    favorite_songs = [s for s in st.session_state.songs if s["id"] in st.session_state.favorites]
-    
-    if favorite_songs:
-        cols = st.columns(3)
-        for idx, song in enumerate(favorite_songs):
-            with cols[idx % 3]:
-                with st.container():
-                    st.image(song.get("cover_url", "https://via.placeholder.com/150"), use_column_width=True)
-                    st.write(f"**{song['title']}**")
-                    st.caption(f"{song['artist']}")
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("▶️ Play", key=f"fav_play_{song['id']}"):
-                            play_song(song)
-                            st.rerun()
-                    with col2:
-                        if st.button("❌ Remove", key=f"fav_remove_{song['id']}"):
-                            st.session_state.favorites.remove(song["id"])
-                            save_to_github(st.session_state.favorites, "data/favorites.json", "Remove from favorites")
-                            st.rerun()
-    else:
-        st.info("No favorites yet. Like songs to add them here!")
+st.markdown('</div>', unsafe_allow_html=True)
 
-# Player at bottom
-st.divider()
-if st.session_state.current_song:
-    col1, col2, col3 = st.columns([2, 2, 1])
-    with col1:
-        st.write(f"🎵 **Now Playing:** {st.session_state.current_song['title']}")
-        st.caption(f"by {st.session_state.current_song['artist']}")
-    with col2:
-        st.audio(st.session_state.current_song["url"])
-    with col3:
-        if st.button("✖️ Stop"):
-            st.session_state.current_song = None
-            st.rerun()
+# ============= SIDEBAR - SEARCH & FILTER =============
+with st.sidebar:
+    st.markdown("### 🔍 Search & Filter")
+    
+    search = st.text_input("🎵 Search songs...", placeholder="Title or Artist")
+    st.session_state.search_query = search
+    
+    genre = st.selectbox("Genre", get_genres(), index=get_genres().index(st.session_state.selected_genre))
+    st.session_state.selected_genre = genre
+    
+    st.markdown("---")
+    st.markdown("### 📊 Playlist Stats")
+    st.metric("Total Songs", len(SAMPLE_SONGS))
+    st.metric("Current Song", st.session_state.current_song["title"][:20])
+
+# ============= MUSIC LIBRARY =============
+st.markdown("## 🎼 Music Library")
+
+filtered_songs = filter_songs(SAMPLE_SONGS, st.session_state.search_query, st.session_state.selected_genre)
+
+if filtered_songs:
+    # Display as grid
+    cols = st.columns(4)
+    
+    for idx, song in enumerate(filtered_songs):
+        with cols[idx % 4]:
+            st.markdown(
+                f'''
+                <div class="music-card" style="background: linear-gradient(135deg, {song["color"]}33 0%, {song["color"]}11 100%);">
+                    <div style="text-align: center;">
+                        <div style="font-size: 40px; margin-bottom: 10px;">♫</div>
+                        <h4 style="color: white; margin: 5px 0; font-size: 14px;">{song["title"]}</h4>
+                        <p style="color: rgba(255,255,255,0.8); font-size: 12px; margin: 3px 0;">{song["artist"]}</p>
+                        <p style="color: rgba(255,255,255,0.6); font-size: 11px; margin: 5px 0;">{song["genre"]} • {song["duration"]}</p>
+                    </div>
+                </div>
+                ''',
+                unsafe_allow_html=True
+            )
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"▶️ Play", key=f"play_{song['id']}", use_container_width=True):
+                    play_song(song)
+                    st.rerun()
+            
+            with col2:
+                if st.button(f"❤️", key=f"like_{song['id']}", use_container_width=True):
+                    st.toast(f"Added '{song['title']}' to favorites!")
 else:
-    st.info("Select a song to play")
+    st.warning("❌ No songs found. Try adjusting your search or filter.")
+
+# ============= FOOTER =============
+st.markdown("---")
+st.markdown(
+    '<div style="text-align: center; color: rgba(255,255,255,0.6); padding: 20px;">'
+    '<p>🎵 Wavo v1.0 | Built with Streamlit | 2024</p>'
+    '<p style="font-size: 12px;">Enjoy your music! 🎧</p>'
+    '</div>',
+    unsafe_allow_html=True
+)
